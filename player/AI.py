@@ -448,12 +448,6 @@ class AI:
         Eval(s) = material + mobility + king-safety + center-control
         Source: Page 56/57 of https://web.stanford.edu/class/archive/cs/cs221/cs221.1186/lectures/games1.pdf
         """
-        """
-        to implement:
-        mid and endgame checks, based off standard checks for those
-        isolated pawn check (no friendly pawn on adjacent column)
-        position based utility
-        """
         value=0
         if self.is_endgame(gametiles):
             material_sum = self.material_sum(gametiles, self.piece_value_endgame)
