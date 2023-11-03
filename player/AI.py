@@ -249,49 +249,238 @@ class AI:
             arr.append([y,x,move[0],move[1],mk])
         return arr
 
+    """
+    From this point on will be code the group added
+    No modifications were made to functions other 
+    than the evaluation function, and these additions
+    are only used within themselves or in the evaluation function
+    """
 
-    def calculateb(self,gametiles):
-        value=0
+    #Using Stockfish values, source: https://chess.stackexchange.com/a/27391
+    #use same dict for both white and black
+    #reminder: black is capitals
+    piece_value_midgame = {
+        'p' : 126,
+        'n' : 781,
+        'b' : 825,
+        'r' : 1276,
+        'q' : 2538,
+        'k' : 100000,
+        'P' : -126,
+        'N' : -781,
+        'B' : -825,
+        'R' : -1276,
+        'Q' : -2538,
+        'K' : -100000,
+        '-' : 0
+    }
+    piece_value_endgame = {
+        'p' : 208,
+        'n' : 854,
+        'b' : 915,
+        'r' : 1380,
+        'q' : 2682,
+        'k' : 100000,
+        'P' : -208,
+        'N' : -854,
+        'B' : -915,
+        'R' : -1380,
+        'Q' : -2682,
+        'K' : -100000,
+        '-' : 0
+    }
+
+    """
+    Search over board and sum mats
+    """
+    def material_sum(self, gametiles, piece_value):
+        mat_sum = 0
         for x in range(8):
             for y in range(8):
-                    if gametiles[y][x].pieceonTile.tostring()=='P':
-                        value=value-100
+                mat_sum += piece_value[gametiles[y][x].pieceonTile.tostring()]
+        return mat_sum
 
-                    if gametiles[y][x].pieceonTile.tostring()=='N':
-                        value=value-350
 
-                    if gametiles[y][x].pieceonTile.tostring()=='B':
-                        value=value-350
+    """
+    it's possible and common to use opening vs midgame vs endgame
+    but it's also pretty common to treat opening and midgame as the same
+    since we're not doing anything special in openings because 
+    that would overcomplicate this even more,
+    we're just going to treat opening and midgame the same material-wise
+    """
+    """
+    How we're calculating endgame vs not:
+    pretty much just count how many non-trivial pieces there are
+    """
+    def is_endgame(self, gametiles):
+        major_minor_count = 0
+        for x in range(8):
+            for y in range(8):
+                if gametiles[y][x].pieceonTile.tostring() == 'b' or gametiles[y][x].pieceonTile.tostring() == 'B':
+                    major_minor_count = major_minor_count + 1
+                if gametiles[y][x].pieceonTile.tostring() == 'n' or gametiles[y][x].pieceonTile.tostring() == 'N':
+                    major_minor_count = major_minor_count + 1
+                if gametiles[y][x].pieceonTile.tostring() == 'r' or gametiles[y][x].pieceonTile.tostring() == 'R':
+                    major_minor_count = major_minor_count + 1
+                if gametiles[y][x].pieceonTile.tostring() == 'q' or gametiles[y][x].pieceonTile.tostring() == 'Q':
+                    major_minor_count = major_minor_count + 1
+        if major_minor_count <= 7:
+            return True
+        return False
 
-                    if gametiles[y][x].pieceonTile.tostring()=='R':
-                        value=value-525
 
-                    if gametiles[y][x].pieceonTile.tostring()=='Q':
-                        value=value-1000
+    """
+    eval idea from https://hxim.github.io/Stockfish-Evaluation-Guide/ 
+    there are some shortcuts to not make this take 100 years to run
+    and or things that would require refactoring that we're not allowed to do
+    """
+    def bishop_pair(self, gametiles):
+        #return count of bishop pairs
+        white_count = sum(x.count('b') for x in gametiles)
+        black_count = sum(x.count('B') for x in gametiles)
+        return white_count - black_count
+    
+    def get_column(self, matrix, col):
+        return [row[col] for row in matrix]
 
-                    if gametiles[y][x].pieceonTile.tostring()=='K':
-                        value=value-10000
 
-                    if gametiles[y][x].pieceonTile.tostring()=='p':
-                        value=value+100
+    def isolated_pawns(self, gametiles):
+        #NTS: gametiles is rows by columns
+        #isolated pawn is one that has no friendly pawn in the adjacent cols
+        white_iso_pawn_count = 0
+        black_iso_pawn_count = 0
+        for x in range(8):
+            for y in range(8):
+                if gametiles[y][x].pieceonTile.tostring() == 'p':
+                    #if we get a p, we need to check adjacent columns
+                    if x == 0:
+                        if self.get_column(gametiles, x + 1).count('p') == 0:
+                            white_iso_pawn_count = white_iso_pawn_count + 1
+                    elif x == 7:
+                        if self.get_column(gametiles, x - 1).count('p') == 0:
+                            white_iso_pawn_count = white_iso_pawn_count + 1
+                    else:
+                        if self.get_column(gametiles, x - 1).count('p') == 0 and self.get_column(gametiles, x + 1).count('p') == 0:
+                            white_iso_pawn_count = white_iso_pawn_count + 1
+                if gametiles[y][x].pieceonTile.tostring() == 'P':
+                    if x == 0:
+                        if self.get_column(gametiles, x + 1).count('P') == 0:
+                            black_iso_pawn_count = black_iso_pawn_count + 1
+                    elif x == 7:
+                        if self.get_column(gametiles, x - 1).count('P') == 0:
+                            black_iso_pawn_count = black_iso_pawn_count + 1
+                    else:
+                        if self.get_column(gametiles, x - 1).count('P') == 0 and self.get_column(gametiles, x + 1).count('P') == 0:
+                            black_iso_pawn_count = black_iso_pawn_count + 1
 
-                    if gametiles[y][x].pieceonTile.tostring()=='n':
-                        value=value+350
+        return white_iso_pawn_count - black_iso_pawn_count
 
-                    if gametiles[y][x].pieceonTile.tostring()=='b':
-                        value=value+350
+    def supported_pawns(self, gametiles):
+        #number of pawns behind each piece,
+        #double counting if has 2 behind it
+        #
+        white_supp_pawn_count = 0
+        black_supp_pawn_count = 0
+        #can abuse fact no pawn can be in rows 0 and 7
+        for x in range(1,7):
+            for y in range(8): 
+                if gametiles[y][x].pieceonTile.tostring() == 'p':
+                    if y == 0:
+                        white_supp_pawn_count += (1 if gametiles[y+1][x+1].pieceonTile.tostring() == 'p' else 0)
+                    elif y == 7:
+                        white_supp_pawn_count += (1 if gametiles[y-1][x+1].pieceonTile.tostring() == 'p' else 0)
+                    else:
+                        white_supp_pawn_count += (1 if gametiles[y+1][x+1].pieceonTile.tostring() == 'p' else 0)
+                        white_supp_pawn_count += (1 if gametiles[y-1][x+1].pieceonTile.tostring() == 'p' else 0)
+                if gametiles[y][x].pieceonTile.tostring() == 'P':
+                    if y == 0:
+                        black_supp_pawn_count += (1 if gametiles[y+1][x-1].pieceonTile.tostring() == 'P' else 0)
+                    elif y == 7:
+                        black_supp_pawn_count += (1 if gametiles[y-1][x-1].pieceonTile.tostring() == 'P' else 0)
+                    else:
+                        black_supp_pawn_count += (1 if gametiles[y+1][x-1].pieceonTile.tostring() == 'P' else 0)
+                        black_supp_pawn_count += (1 if gametiles[y-1][x-1].pieceonTile.tostring() == 'P' else 0)
+        return white_supp_pawn_count - black_supp_pawn_count
 
-                    if gametiles[y][x].pieceonTile.tostring()=='r':
-                        value=value+525
+    def mobility(self, gamestate):
+        white_legal = 0
+        black_legal = 0
+        for x in range(8):
+            for y in range(8):
+                if gamestate[y][x].pieceonTile.alliance and gamestate[y][x].pieceonTile.legalmoveb(gamestate):
+                    if gamestate[y][x].pieceonTile.alliance == 'White':
+                        white_legal += len(gamestate[y][x].pieceonTile.legalmoveb(gamestate))
+                    if gamestate[y][x].pieceonTile.alliance == 'Black':
+                        black_legal += len(gamestate[y][x].pieceonTile.legalmoveb(gamestate))
+        return white_legal - black_legal     
 
-                    if gametiles[y][x].pieceonTile.tostring()=='q':
-                        value=value+1000
+    def center_check(self, gametiles):
+        pos_bonus = 0
+        for x in range(8):
+            for y in range(8):
+                if gametiles[y][x] in ["P", "R", "N", "B", "Q"]:
+                    if x in [3,4] and y in [3,4]:
+                        pos_bonus -= 100
+                    if x in [2,5] and y in [2,5]:
+                        pos_bonus -= 40
+                if gametiles[y][x] in ["p", "r", "n", "b", "q"]:
+                    if x in [3,4] and y in [3,4]:
+                        pos_bonus += 100
+                    if x in [2,5] and y in [2,5]:
+                        pos_bonus += 40
+        return pos_bonus
 
-                    if gametiles[y][x].pieceonTile.tostring()=='k':
-                        value=value+10000
+    def king_safety(self, gametiles):
+        safe_bonus = 0
+        for x in range(8):
+            for y in range(8):
+                safety = min(x,y,7-x,7-y)
+                if gametiles[y][x].pieceonTile.tostring() == 'k':
+                    safe_bonus += 200 * safety
+                if gametiles[y][x].pieceonTile.tostring() == 'K':
+                    safe_bonus -= 200 * safety
+        return safe_bonus
 
+    
+    def calculateb(self,gametiles):
+        """
+        General framework of evaluation criteria:
+        Eval(s) = material + mobility + king-safety + center-control
+        Source: Page 56/57 of https://web.stanford.edu/class/archive/cs/cs221/cs221.1186/lectures/games1.pdf
+        """
+        """
+        to implement:
+        mid and endgame checks, based off standard checks for those
+        isolated pawn check (no friendly pawn on adjacent column)
+        position based utility
+        """
+        value=0
+        if self.is_endgame(gametiles):
+            material_sum = self.material_sum(gametiles, self.piece_value_endgame)
+        else:
+            material_sum = self.material_sum(gametiles, self.piece_value_midgame)
+
+        #imbalance, using estimate of (material_sum + bishop_pair) / 16
+        bishop_pair = self.bishop_pair(gametiles)
+        imbalance = (material_sum + bishop_pair) / 16
+        #pawns check
+        iso_val = self.isolated_pawns(gametiles)
+        supp_val = self.supported_pawns(gametiles)
+        pawns_val = (-5 * iso_val) + (8 * supp_val)
+        #mobility: number of legal moves, usually uses a table but this is 
+        #relatively rudimentary, using arbitrary scaling
+        mobility_val = 20 * self.mobility(gametiles)
+        #center checking
+        center_val = self.center_check(gametiles)
+        #king safety
+        safe_val = self.king_safety(gametiles)
+        value = material_sum + imbalance + pawns_val + mobility_val + center_val + safe_val
+    
         return value
 
+    """
+    End of group modifications
+    """
 
     def move(self,gametiles,y,x,n,m):
         promotion=False
